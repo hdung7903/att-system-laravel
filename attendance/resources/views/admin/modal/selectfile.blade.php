@@ -6,9 +6,12 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <input type="file" class="form-control" id="file" name="file"
-                    accept=".xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel">
-                <button type="button" class="btn btn-primary my-3 text-right">Submit File</button>
+                <form action="{{ route('admin.import') }}" method="POST" enctype="multipart/form-data">
+                    @csrf
+                    <input type="file" class="form-control" id="file" name="file"
+                        accept=".xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" required>
+                    <button type="submit" class="btn btn-primary my-3 text-right">Submit File</button>
+                </form>
             </div>
         </div>
     </div>

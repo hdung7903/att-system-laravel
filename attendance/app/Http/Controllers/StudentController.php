@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\TimetableRequest;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 
 class StudentController extends Controller
 {
@@ -11,7 +13,7 @@ class StudentController extends Controller
      */
     public function index()
     {
-       return view('student.home');
+        return view('student.home');
     }
 
     /**
@@ -60,5 +62,26 @@ class StudentController extends Controller
     public function destroy(string $id)
     {
         //
+    }
+
+    public function schedule()
+    {
+        // $dates = $this->getCurrentWeekDates();
+        return view('student.schedule');
+    }
+
+
+    private function getCurrentWeekDates()
+    {
+        $currentDate = Carbon::now();
+        $startDate = $currentDate->startOfWeek(Carbon::MONDAY);
+        $endDate = $currentDate->endOfWeek(Carbon::SUNDAY);
+        $dates = [];
+
+        for ($date = $startDate; $date->lte($endDate); $date->addDay()) {
+            $dates[] = $date->format('Y-m-d');
+        }
+
+        return $dates;
     }
 }

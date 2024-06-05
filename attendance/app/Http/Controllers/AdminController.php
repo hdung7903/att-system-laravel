@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\AddUserRequest;
+use App\Http\Requests\FileImportRequest;
 use App\Models\Academics;
 use App\Models\Instructors;
 use App\Models\Students;
@@ -13,6 +14,8 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use App\Models\PendingUserDetails;
 use App\Models\UserRole;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use Maatwebsite\Excel\Concerns\ToCollection;
 
 
 class AdminController extends Controller
@@ -89,7 +92,7 @@ class AdminController extends Controller
             DB::rollBack();
             return back()->withErrors(['error' => 'User creation failed: ' . $e->getMessage()]);
         }
-        return redirect()->route('admin.adduser')->with('success', 'User added successfully.');
+        return redirect()->route('admin.usermanagement.adduser')->with('success', 'User added successfully.');
     }
 
     /**
@@ -119,7 +122,7 @@ class AdminController extends Controller
             ->where('is_pending', 0)
             ->filter()
             ->unique('id');
-        $pending=User::where('is_pending', 1)->count();
+        $pending = User::where('is_pending', 1)->count();
         $userList = $raw_userList->map(function ($user) {
             return [
                 'id' => $user->id,
@@ -131,7 +134,7 @@ class AdminController extends Controller
                 'roles' => $user->roles->pluck('name')->toArray(),
             ];
         });
-        return view("admin.userlist", compact("userList","pending"));
+        return view("admin.usermanagement.userlist", compact("userList", "pending"));
     }
 
 
@@ -204,44 +207,44 @@ class AdminController extends Controller
             }
         }
 
-        return view("admin.userdetails", compact("details"));
+        return view("admin.usermanagement.userdetails", compact("details"));
     }
 
     public function showAddForm()
     {
-        return view("admin.adduser");
+        return view("admin.usermanagement.adduser");
     }
 
     public function showImportForm()
     {
-        return view("admin.import");
+        return view("admin.modal.selectfile");
     }
 
     public function softDeleteUser(int $id)
     {
         $user = User::findOrFail($id);
         $user->delete();
-        return redirect()->route('admin.userlist');
+        return redirect()->route('admin.usermanagement.userlist');
     }
 
     public function forceDeleteUser(int $id)
     {
         $user = User::withTrashed()->findOrFail($id);
         $user->forceDelete();
-        return redirect()->route('admin.userlist');
+        return redirect()->route('admin.usermanagement.userlist');
     }
 
     public function restoreUser(int $id)
     {
         $user = User::withTrashed()->findOrFail($id);
         $user->restore();
-        return redirect()->route('admin.userlist');
+        return redirect()->route('admin.usermanagement.userlist');
     }
 
     public function pendingUser()
     {
         $pendingUsers = User::with('pendingUserDetail')->where('is_pending', 1)->get();
-        return view('admin.pending', compact('pendingUsers'));
+        return view('admin.usermanagement.pending', compact('pendingUsers'));
     }
 
     public function deletePendingUser($id)
@@ -291,7 +294,96 @@ class AdminController extends Controller
         return redirect()->back();
     }
 
-    public function importUserListData(){
-        
+    public function importUserListData(FileImportRequest $request)
+    {
+        $file = $request->file('file');
+        $spreadsheet = IOFactory::load($file->getPathname());
+
+        $sheet = $spreadsheet->getActiveSheet();
+        $data = $sheet->toArray();
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($data as $index => $row) {
+
+                if ($index === 0) {
+                    continue;
+                }
+
+                $userData = [
+                    'username' => $row[0],
+                    'firstname' => $row[1],
+                    'lastname' => $row[2],
+                    'email' => $row[3],
+                    'dob' => $row[4],
+                    'gender' => $row[5],
+                    'password' => $row[6],
+                    'isStudent' => $row[7],
+                    'isInstructor' => $row[8],
+                    'isAdmin' => $row[9],
+                    'isAcademic' => $row[10],
+                ];
+
+                $role = null;
+                if ($userData['isStudent']) {
+                    $role = 1;
+                } elseif ($userData['isInstructor']) {
+                    $role = 2;
+                } elseif ($userData['isAcademic']) {
+                    $role = 3;
+                } elseif ($userData['isAdmin']) {
+                    $role = 4;
+                }
+
+                $user = User::create([
+                    "username" => $userData['username'],
+                    "password" => bcrypt($userData['password']),
+                    "email" => $userData['email'],
+                    "is_pending" => 0,
+                ]);
+
+                $user->roles()->attach($role);
+
+                if ($role == 1) {
+                    Students::create([
+                        "user_id" => $user->id,
+                        "firstname" => $userData['firstname'],
+                        "lastname" => $userData['lastname'],
+                        "dob" => Carbon::parse($userData['dob'])->format('Y-m-d'),
+                        "gender" => $userData['gender'],
+                    ]);
+                } elseif ($role == 2) {
+                    Instructors::create([
+                        "user_id" => $user->id,
+                        "firstname" => $userData['firstname'],
+                        "lastname" => $userData['lastname'],
+                        "dob" => Carbon::parse($userData['dob'])->format('Y-m-d'),
+                        "gender" => $userData['gender'],
+                    ]);
+                } elseif ($role == 3) {
+                    Academics::create([
+                        "user_id" => $user->id,
+                        "firstname" => $userData['firstname'],
+                        "lastname" => $userData['lastname'],
+                        "dob" => Carbon::parse($userData['dob'])->format('Y-m-d'),
+                        "gender" => $userData['gender'],
+                    ]);
+                } else {
+                    Admins::create([
+                        "user_id" => $user->id,
+                        "firstname" => $userData['firstname'],
+                        "lastname" => $userData['lastname'],
+                        "dob" => Carbon::parse($userData['dob'])->format('Y-m-d'),
+                        "gender" => $userData['gender'],
+                    ]);
+                }
+            }
+            DB::commit();
+            return redirect('/admin/userlist');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['error' => 'User import failed: ' . $e->getMessage()]);
+        }
     }
 }

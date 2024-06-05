@@ -2,8 +2,8 @@
 
 @section('main-content')
     <div class="my-3">
-        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#selectionModal">Add User</button>
-        <button class="btn btn-info">Install List</button>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#selectionModal">Import Users</button>
+        <button class="btn btn-info">Exports Users</button>
         <a href="{{ route('admin.pending') }}" class="btn btn-primary position-relative">
             Pending user request
             <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
